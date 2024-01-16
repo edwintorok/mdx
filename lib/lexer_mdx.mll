@@ -19,7 +19,9 @@ rule text section = parse
         newline lexbuf;
         `Section section :: text (Some section) lexbuf }
   | ( "<!--" ws* "$MDX" ws* ([^' ' '\n']* as label_cmt) ws* "-->" ws* eol? )?
-      "```" ([^' ' '\n']* as header) ws* ([^'\n']* as legacy_labels) eol
+      "```"  ([^' ' '=' '\n']* as header)? ws* ([^ '{' '\n']* as legacy_labels)
+      ('{' (('#'[^' ' '\n']+)? as _identifier) ws* ('.'([^' ' '}' '\n']+) as _header2)? ws* ([^'}' '\n']* as _attributes) '}')?
+      eol
       { let start = Lexing.lexeme_start_p lexbuf in
         newline lexbuf;
         (match label_cmt with
@@ -39,6 +41,7 @@ rule text section = parse
                 | _ -> `Output x) e
         in
         let end_ = Lexing.lexeme_start_p lexbuf in
+        let header = Option.value ~default:"" header in
         let loc = loc ~start ~end_ in
         let block =
           Block.Raw.make ~loc ~section ~header ~contents ~label_cmt
@@ -123,6 +126,7 @@ and cram_block = parse
     try Ok (text None lexbuf)
     with
     | exn ->
+      Printexc.print_backtrace stderr;
       let loc = Location.curr lexbuf in
       let msg =
         Format.asprintf "%a: %s" Stable_printer.Location.pp loc
@@ -135,6 +139,7 @@ let cram_token lexbuf =
     try Ok (cram_text None lexbuf)
     with
     | exn ->
+      Printexc.print_backtrace stderr;
       let loc = Location.curr lexbuf in
       let msg =
         Format.asprintf "%a: %s" Stable_printer.Location.pp loc
